@@ -1,4 +1,4 @@
-# FreeClaw Protocol v1
+# FreeClaw Protocol v1.1
 
 **A Markdown-based protocol for structured code file delivery from AI to file systems.**
 
@@ -15,7 +15,7 @@ Large language models are excellent at generating code, but lack a standardized 
 FreeClaw Protocol solves this by:
 
 * Using **Markdown structure (AST)** instead of custom syntax
-* Mapping **headings → file paths**
+* Mapping **headings → file paths** (with optional line ranges)
 * Mapping **code blocks → file contents**
 * Ensuring outputs are both **human-readable** and **machine-parsable**
 
@@ -25,12 +25,14 @@ FreeClaw Protocol solves this by:
 
 Each file is represented by:
 
-1. An `h2` heading containing the **relative file path**
-2. A fenced code block containing the **complete file content**
+1. An `h2` heading containing the **relative file path** (optionally with a line range)
+2. A fenced code block containing the **complete file content** (or replacement content for range mode)
 
 ---
 
 ## Syntax
+
+### Full Replacement (default)
 
 ````markdown
 ## relative/path/to/file.ext
@@ -39,9 +41,47 @@ complete source code
 ```
 ````
 
+### Range Replacement
+
+````markdown
+## relative/path/to/file.ext[start,end]
+```language
+replacement code
+```
+````
+
 ---
 
-## Example
+## Range Replacement Semantics
+
+### Range Definition
+
+`[start,end]` refers to line numbers of the **target file before modification** (closed interval).
+
+### Line Number Rules
+
+1. Line numbering starts from 1
+2. Line endings MUST be normalized to LF before processing
+3. Line numbers refer to raw text lines, not AST nodes
+
+### Replacement Behavior
+
+The range `[start,end]` is **deleted entirely** and replaced by the provided code block content.
+
+### Single Range Only
+
+Only one range per file entry is allowed. Multiple ranges MUST be split into multiple entries.
+
+### Invalid Cases
+
+The following are considered invalid and the entry is ignored:
+- `start > end`
+- Missing file content
+- Malformed range format
+
+---
+
+## Examples
 
 ````markdown
 ## js/services/extractor.js
@@ -51,17 +91,9 @@ export function extract() {
 }
 ```
 
-## css/main.css
-```css
-body {
-    margin: 0;
-}
-```
-
-## README.md
-```markdown
-# Project
-This is a sample project.
+## js/ui/toast.js[3,4]
+```javascript
+    _timer: null,
 ```
 ````
 
@@ -69,7 +101,6 @@ This is a sample project.
 
 ## Core Rules
 
-```
 1. Each file MUST be represented by one h2 heading
 2. The heading MUST contain a relative file path
 3. The path MUST NOT start with / or ./
@@ -85,11 +116,13 @@ This is a sample project.
 11. Empty code blocks are NOT allowed
 
 12. Each h2 corresponds to exactly one file
-13. Duplicate file paths SHOULD be avoided; if present, the last occurrence SHOULD win
+13. Multiple entries for the same file path ARE allowed:
+    - Full replacement + range replacement can coexist
+    - All entries remain valid; users choose which to save
+    - Parsers MUST retain all entries without overwriting
 
 14. Language tags in code blocks are OPTIONAL and for readability only
 15. Parsers SHOULD rely on file extensions, not language tags
-```
 
 ---
 
@@ -98,10 +131,11 @@ This is a sample project.
 A compliant parser SHOULD:
 
 1. Traverse all `h2` elements in the Markdown AST
-2. Extract the text content as the file path
-3. Locate the nearest following `<pre><code>` block
-4. Extract the code content
-5. Write the file to the corresponding relative path
+2. Extract the text content as the file path (strip `[start,end]` if present)
+3. If `[start,end]` exists, record the line range
+4. Locate the nearest following `<pre><code>` block
+5. Extract the code content
+6. Write the file to the corresponding relative path
 
 ---
 
@@ -131,12 +165,12 @@ Outputs remain readable and editable by humans.
 
 ## Comparison
 
-| Approach                     | Issues                               |
-| ---------------------------- | ------------------------------------ |
-| Inline comments (`// file:`) | Breaks JSON / non-comment languages  |
-| Custom delimiters            | Hard for AI to follow consistently   |
-| JSON output                  | Less readable, harder for large code |
-| FreeClaw Protocol            | Simple, structured, robust           |
+| Approach | Issues |
+|---|---|
+| Inline comments (`// file:`) | Breaks JSON / non-comment languages |
+| Custom delimiters | Hard for AI to follow consistently |
+| JSON output | Less readable, harder for large code |
+| FreeClaw Protocol | Simple, structured, robust |
 
 ---
 
@@ -160,7 +194,6 @@ Outputs remain readable and editable by humans.
 
 ## Future Work
 
-* Diff-based updates
 * Streaming support
 * Multi-root workspace support
 * Formal schema validation
@@ -170,12 +203,6 @@ Outputs remain readable and editable by humans.
 ## License
 
 MIT License
-
----
-
-## Author
-
-FreeClaw Project
 
 ---
 
