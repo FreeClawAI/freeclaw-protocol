@@ -4,6 +4,8 @@
 
 FreeClaw Protocol defines a simple, deterministic way for AI models to output multiple source code files in a format that can be automatically parsed and written to a local project.
 
+[中文说明](README_zh.md)
+
 ---
 
 ## Overview
